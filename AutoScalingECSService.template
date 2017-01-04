@@ -1,0 +1,77 @@
+{
+    "Parameters" : {
+        "Owner" : {
+            "Type" : "String",
+            "Description" : "Enter the owner of the ECS service."
+        },
+        "AppName" : {
+            "Type" : "String",
+            "Description" : "Enter the name of the application to be deployed via ECS."
+        },
+        "ContainerImage" : {
+            "Type" : "String",
+            "Description" : "Enter the url for the container image to be spun up."
+        },
+        "ContainerCPU" : {
+            "Type" : "Number",
+            "Default" : "0",
+            "Description" : "Enter the minimum number of CPU units to reserve for the container."
+        },
+        "ContainerMemory" : {
+            "Type" : "Number",
+            "Default" : "128",
+            "Description" : "Enter the amount of memory (MB) to reserve for the container."
+        },
+        "TaskVolumeName" : {
+            "Type" : "String",
+            "Description" : "Enter the name of the host volume to be mounted."
+        },
+        "TaskVolumeHostSourcePath" : {
+            "Type" : "String",
+            "Description" : "Enter the source path of the host volume to be mounted."
+        },
+        "MountPointContainerPath" : {
+            "Type" : "String",
+            "Description" : "Enter the container path to be mounted to the volume."
+        },
+        "ECSClusterName" : {
+            "Type" : "String",
+            "Default" : "test-ecs-cluster",
+            "Description" : "Enter the name of the ECS cluster to deploy the service."
+        },
+        "ECSTaskRoleARN" : {
+            "Type" : "String",
+            "Description" : "Enter the IAM role ARN to be assigned to the ECS Task."
+        }
+    },
+    "Resources" : {
+        "ECSTaskDefinition" : {
+            "Type" : "AWS::ECS::TaskDefinition",
+            "Properties" : {
+                "Family" : { "Ref" : "AppName"},
+                "TaskRoleArn" : { "Ref" : "ECSTaskRoleARN" },
+                "ContainerDefinitions" : [ 
+                    {
+                        "Name": { "Ref" : "AppName" },
+                        "MountPoints": [
+                            {
+                                "SourceVolume": { "Ref" : "TaskVolumeName" },
+                                "ContainerPath": { "Ref" : "MountPointContainerPath" }
+                            }
+                        ],
+                        "Image": { "Ref" : "ContainerImage" },
+                        "Cpu": { "Ref" : "ContainerCPU" },
+                        "Memory": { "Ref" : "ContainerMemory" }
+                    }
+                ],
+                "Volumes": [
+                {
+                    "Host": {
+                        "SourcePath": { "Ref" : "TaskVolumeHostSourcePath" }
+                    },
+                    "Name": { "Ref" : "TaskVolumeName" }
+                }]
+            }
+        }
+    }
+}

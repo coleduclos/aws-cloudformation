@@ -9,6 +9,14 @@
             "Default" : "test-ecs-cluster",
             "Description" : "Enter the name applied to the ECS cluster."
         },
+        "ECSInstanceRole" : {
+            "Type" : "String",
+            "Description" : "Enter the IAM role to be assigned to the ECS instance."
+        },
+        "ECSConfigS3Location" : {
+            "Type" : "String",
+            "Description" : "Specify the S3 location of the ECS config file to be used for each instance in the cluster. For example: s3://<bucket-name>/<path>/ecs.config"
+        },
         "InstanceType" : {
             "Type" : "String",
             "Default" : "t2.micro",
@@ -78,8 +86,14 @@
                 "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "ecsOptimized" ] },
                 "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
                 "InstanceType" : { "Ref" : "InstanceType" },
+                "IamInstanceProfile" : { "Ref" : "ECSInstanceRole" },
                 "KeyName" : { "Ref" : "KeyName" },
-                "AssociatePublicIpAddress" : { "Ref" : "AssignPublicIP" }          
+                "AssociatePublicIpAddress" : { "Ref" : "AssignPublicIP" },
+                "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+                    "#!/bin/bash \n",
+                    "yum install -y aws-cli \n",
+                    "aws s3 cp ", { "Ref" : "ECSConfigS3Location"}, " /etc/ecs/ecs.config"
+                ]]}}         
             }
         },
         "ECSInstanceScaleUpPolicy" : {

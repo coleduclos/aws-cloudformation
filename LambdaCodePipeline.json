@@ -32,9 +32,23 @@
             "Type" : "String",
             "Description" : "Enter the name of the zip file containing the Lambda function."
         },
-        "GitHubAuthRepo" : {
+        "GitHubUser" : {
             "Type" : "String",
-            "Description" : "Enter the HTTPS clone URL, including the user name and personal access token, to the repository that contains the source code and the build spec (for example, https://login-user-name:personal-access-token@github.com/repo-owner-name/repo-name.git)"
+            "Description" : "Enter the GitHub username to access code repo."
+        },
+        "GitHubRepoName" : {
+            "Type" : "String",
+            "Description" : "Enter GitHub repository name."
+        },
+        "GitHubToken": {
+            "Type" : "String",
+            "NoEcho" : "true",
+            "Description" : "Go to https://github.com/settings/tokens to create/find a token for your account"
+        },
+        "GitHubBranchName":{
+            "Type" : "String",
+            "Default" : "master",
+            "Description" : "Name of the branch that you want to pull from. Not the Url."
         },
         "BuildArtifactsLocation" : {
             "Type" : "String",
@@ -75,8 +89,8 @@
                         {
                             "Effect": "Allow",
                             "Resource": [
-                                { "Fn::Join" : [ "", [ "arn:aws:logs:", { "Ref" : "AWS::Region" }, ":", { "Ref" : "AWS::AccountId" }, ":log-group:/aws/codebuild/", { "Ref" : "ServiceName" } ] ] },
-                                { "Fn::Join" : [ "", [ "arn:aws:logs:", { "Ref" : "AWS::Region" }, ":", { "Ref" : "AWS::AccountId" }, ":log-group:/aws/codebuild/", { "Ref" : "ServiceName" }, ":*" ] ] },
+                                { "Fn::Join" : [ "", [ "arn:aws:logs:", { "Ref" : "AWS::Region" }, ":", { "Ref" : "AWS::AccountId" }, ":log-group:/aws/codebuild/", { "Ref" : "ServiceName" }, "-codebuild" ] ] },
+                                { "Fn::Join" : [ "", [ "arn:aws:logs:", { "Ref" : "AWS::Region" }, ":", { "Ref" : "AWS::AccountId" }, ":log-group:/aws/codebuild/", { "Ref" : "ServiceName" }, "-codebuild", ":*" ] ] },
                             ],
                             "Action": [
                                 "logs:CreateLogGroup",
@@ -87,7 +101,7 @@
                         {
                             "Effect": "Allow",
                             "Resource": [
-                                { "Fn::Join" : [ "", [ "arn:aws:s3:::codepipeline-", { "Ref" : "AWS::Region" }, "-*" ] ] }
+                                { "Fn::Join" : [ "", [ "arn:aws:s3:::", { "Ref" : "BuildArtifactsLocation" }, "/*" ] ] }
                             ],
                             "Action": [
                                 "s3:PutObject",
@@ -114,13 +128,13 @@
         "CodeBuild" : {
             "Type" : "AWS::CodeBuild::Project",
             "Properties" : {
+                "Name" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-codebuild" ] ] },
                 "Artifacts" : {
                     "Type" : "S3",
                     "Location" : { "Ref" : "BuildArtifactsLocation" },
-                    "Path" : { "Ref" : "ServiceName" },
                     "NamespaceType" : "NONE",
                     "Packaging" : "NONE",
-                    "Name" : "ratings-service-stack-config.json"
+                    "Name" : { "Ref" : "ServiceName" }
                 },
                 "Environment" : {
                     "ComputeType" : { "Ref" : "BuildEnvComputeType" },
@@ -141,17 +155,86 @@
                     "Image" : { "Ref" : "BuildEnvImage" },
                     "Type" : "LINUX_CONTAINER"
                 },
-                "Name" : { "Ref" : "ServiceName" },
                 "ServiceRole" : { "Fn::GetAtt": [ "CodeBuildRole", "Arn" ] },
                 "Source" : {
                     "Type" : "GITHUB",
-                    "Location" : { "Ref" : "GitHubAuthRepo" }
+                    "Location" : { "Fn::Join" : [ "", [ "https://", { "Ref" : "GitHubUser" }, ":", { "Ref" : "GitHubToken" }, "@github.com/", { "Ref" : "GitHubUser" }, "/", { "Ref" : "GitHubRepoName" }, ".git" ] ] }
                 },
                 "Tags" : [ 
                     {
                       "Key" : "Owner",
                       "Value" : { "Ref" : "Owner" }
                     }
+                ]
+            }
+        },
+        "CodePipeline"  :  {
+            "Type" : "AWS::CodePipeline::Pipeline",
+            "Properties" : {
+                "ArtifactStore" : {
+                    "Location" : { "Ref" : "BuildArtifactsLocation" },
+                    "Type" : "S3"
+                },
+                "Name" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "codepipeline" ] ] },
+                "RestartExecutionOnUpdate" : "True",
+                "RoleArn" : "arn:aws:iam::287222052256:role/AWS-CodePipeline-Service",
+                "Stages" : [ 
+                    {
+                        "Name" : "Source",
+                        "Actions" : [
+                            {
+                                "Name" : "SourceAction",
+                                "ActionTypeId" : {
+                                    "Category" : "Source",
+                                    "Owner" : "ThirdParty",
+                                    "Provider" : "GitHub",
+                                    "Version" : "1"
+                                },
+                                "Configuration" : {           
+                                    "Owner" : { "Ref" : "GitHubUser" },
+                                    "Repo" : { "Ref" : "GitHubRepoName" },
+                                    "Branch" : { "Ref" : "GitHubBranchName" },
+                                    "OAuthToken" : { "Ref" : "GitHubToken" }
+                                },  
+                                "OutputArtifacts" : [
+                                    {
+                                        "Name" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "source-artifacts" ] ] }
+                                    }
+                                ],
+                                "RunOrder" : "1"
+                            }
+                        ] 
+                    },
+                    {
+                        "Name" : "Build",
+                        "Actions" : [
+                            {
+                                "Name" : "BuildAction",
+                                "ActionTypeId" : {
+                                    "Category" : "Build",
+                                    "Owner" : "AWS",
+                                    "Provider" : "CodeBuild",
+                                    "Version" : "1"
+                                },  
+                                "Configuration" : {
+                                    "ProjectName": { "Ref" : "CodeBuild" }
+                                },  
+                                
+                                "InputArtifacts" : [
+                                    {
+                                        "Name" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "source-artifacts" ] ] }
+                                    }
+                                ],
+                                "OutputArtifacts" : [
+                                    {
+                                        "Name" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "build-artifacts" ] ] }
+                                    }
+                                ],
+                                "RunOrder" : "1"
+                            }
+                        ]
+                        
+                    }                   
                 ]
             }
         }

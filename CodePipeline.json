@@ -35,6 +35,15 @@
         "CodeBuildServiceRoleARN" : {
             "Type" : "String",
             "Description" : "Enter the CodeBuild service role ARN."
+        },
+        "GitHubAuthRepo" : {
+            "Type" : "String",
+            "Description" : "Enter the HTTPS clone URL, including the user name and personal access token, to the repository that contains the source code and the build spec (for example, https://login-user-name:personal-access-token@github.com/repo-owner-name/repo-name.git)"
+        },
+        "BuildArtifactsLocation" : {
+            "Type" : "String",
+            "Default" : "sf-te-codebuild-artifacts",
+            "Description" : "Enter the S3 bucket where the artifacts will be stored."
         }
     },
     "Resources" : {
@@ -43,7 +52,12 @@
             "Type" : "AWS::CodeBuild::Project",
             "Properties" : {
                 "Artifacts" : {
-                    "Type" : "CODEPIPELINE"
+                    "Type" : "S3",
+                    "Location" : { "Ref" : "BuildArtifactsLocation" },
+                    "Path" : { "Ref" : "ServiceName" },
+                    "NamespaceType" : "NONE",
+                    "Packaging" : "NONE",
+                    "Name" : "ratings-service-stack-config.json"
                 },
                 "Environment" : {
                     "ComputeType" : { "Ref" : "BuildEnvComputeType" },
@@ -67,7 +81,8 @@
                 "Name" : { "Ref" : "ServiceName" },
                 "ServiceRole" : { "Ref" : "CodeBuildServiceRoleARN" },
                 "Source" : {
-                    "Type" : "GITHUB"
+                    "Type" : "GITHUB",
+                    "Location" : { "Ref" : "GitHubAuthRepo" }
                 },
                 "Tags" : [ 
                     {

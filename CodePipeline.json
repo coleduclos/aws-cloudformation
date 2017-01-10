@@ -1,0 +1,82 @@
+{
+    "Parameters" : {
+        "Owner" : {
+            "Type" : "String",
+            "Description" : "Enter the owner of the pipeline."
+        },
+        "ServiceName" : {
+            "Type" : "String",
+            "Description" : "Enter the name of the service to build, test, and deploy."
+        },
+        "BuildEnvComputeType" : {
+            "Type" : "String",
+            "Default" : "BUILD_GENERAL1_SMALL",
+            "AllowedValues" : ["BUILD_GENERAL1_SMALL", "BUILD_GENERAL1_MEDIUM", "BUILD_GENERAL1_LARGE"],
+            "Description" : "Select the compute type for the build environment."
+        },
+        "BuildEnvImage" : { 
+            "Type" : "String",
+            "Default" : "aws/codebuild/docker:1.12.1",
+            "AllowedValues" : [ "aws/codebuild/docker:1.12.1", "aws/codebuild/ubuntu-base:14.04" ],
+            "Description" : "Select the image for the build environment."
+        },
+        "LambdaHandlerFile" : {
+            "Type" : "String",
+            "Description" : "Enter the name the file with the Lambda handler function."
+        },
+        "LambdaCodeS3Path" : {
+            "Type" : "String",
+            "Description" : "Enter the S3 path to the Lambda function."
+        },
+        "LambdaZipFileName" : {
+            "Type" : "String",
+            "Description" : "Enter the name of the zip file containing the Lambda function."
+        },
+        "CodeBuildServiceRoleARN" : {
+            "Type" : "String",
+            "Description" : "Enter the CodeBuild service role ARN."
+        }
+    },
+    "Resources" : {
+
+        "CodeBuild" : {
+            "Type" : "AWS::CodeBuild::Project",
+            "Properties" : {
+                "Artifacts" : {
+                    "Type" : "CODEPIPELINE"
+                },
+                "Environment" : {
+                    "ComputeType" : { "Ref" : "BuildEnvComputeType" },
+                    "EnvironmentVariables" : [ 
+                        {
+                            "Name" : "LAMBDA_HANDLER_FILE",
+                            "Value" : { "Ref" : "LambdaHandlerFile" } 
+                        },
+                        {
+                            "Name" : "S3_PATH",
+                            "Value" : { "Ref" : "LambdaCodeS3Path" } 
+                        },
+                        {
+                            "Name" : "LAMBDA_ZIP_FILE",
+                            "Value" : { "Ref" : "LambdaZipFileName" } 
+                        } 
+                    ],
+                    "Image" : { "Ref" : "BuildEnvImage" },
+                    "Type" : "LINUX_CONTAINER"
+                },
+                "Name" : { "Ref" : "ServiceName" },
+                "ServiceRole" : { "Ref" : "CodeBuildServiceRoleARN" },
+                "Source" : {
+                    "Type" : "GITHUB"
+                },
+                "Tags" : [ 
+                    {
+                      "Key" : "Owner",
+                      "Value" : { "Ref" : "Owner" }
+                    }
+                ]
+            }
+        }
+
+    }
+}

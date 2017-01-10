@@ -32,10 +32,6 @@
             "Type" : "String",
             "Description" : "Enter the name of the zip file containing the Lambda function."
         },
-        "CodeBuildServiceRoleARN" : {
-            "Type" : "String",
-            "Description" : "Enter the CodeBuild service role ARN."
-        },
         "GitHubAuthRepo" : {
             "Type" : "String",
             "Description" : "Enter the HTTPS clone URL, including the user name and personal access token, to the repository that contains the source code and the build spec (for example, https://login-user-name:personal-access-token@github.com/repo-owner-name/repo-name.git)"
@@ -47,6 +43,73 @@
         }
     },
     "Resources" : {
+
+        "CodeBuildRole" : {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": { 
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "codebuild.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                },
+                "Path": "/service-role/",
+                "RoleName" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "codebuild-role" ] ] }
+
+            }
+        },
+
+        "CodeBuildPolicy" : {
+            "Type" : "AWS::IAM::Policy",
+            "Properties" : { 
+                "Roles" : [{ "Ref" : "CodeBuildRole" }],
+                "PolicyDocument" : {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Resource": [
+                                { "Fn::Join" : [ "", [ "arn:aws:logs:", { "Ref" : "AWS::Region" }, ":", { "Ref" : "AWS::AccountId" }, ":log-group:/aws/codebuild/", { "Ref" : "ServiceName" } ] ] },
+                                { "Fn::Join" : [ "", [ "arn:aws:logs:", { "Ref" : "AWS::Region" }, ":", { "Ref" : "AWS::AccountId" }, ":log-group:/aws/codebuild/", { "Ref" : "ServiceName" }, ":*" ] ] },
+                            ],
+                            "Action": [
+                                "logs:CreateLogGroup",
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ]
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Resource": [
+                                { "Fn::Join" : [ "", [ "arn:aws:s3:::codepipeline-", { "Ref" : "AWS::Region" }, "-*" ] ] }
+                            ],
+                            "Action": [
+                                "s3:PutObject",
+                                "s3:GetObject",
+                                "s3:GetObjectVersion"
+                            ]
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Resource": [
+                                { "Fn::Join" : [ "", [ "arn:aws:s3:::", { "Ref" : "BuildArtifactsLocation" }, "/*" ] ] }, 
+                                { "Fn::Join" : [ "", [ "arn:aws:s3:::", { "Ref" : "LambdaCodeS3Path" }, "*" ] ] }
+                            ],
+                            "Action": [
+                                "s3:PutObject"
+                            ]
+                        }
+                    ]
+                },
+                "PolicyName" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "codebuild-policy" ] ] }
+            }
+        },
 
         "CodeBuild" : {
             "Type" : "AWS::CodeBuild::Project",
@@ -79,7 +142,7 @@
                     "Type" : "LINUX_CONTAINER"
                 },
                 "Name" : { "Ref" : "ServiceName" },
-                "ServiceRole" : { "Ref" : "CodeBuildServiceRoleARN" },
+                "ServiceRole" : { "Fn::GetAtt": [ "CodeBuildRole", "Arn" ] },
                 "Source" : {
                     "Type" : "GITHUB",
                     "Location" : { "Ref" : "GitHubAuthRepo" }

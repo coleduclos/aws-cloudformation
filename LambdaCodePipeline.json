@@ -121,7 +121,7 @@
                         }
                     ]
                 },
-                "PolicyName" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "codebuild-policy" ] ] }
+                "PolicyName" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-codebuild-policy" ] ] }
             }
         },
 

@@ -54,9 +54,56 @@
             "Type" : "String",
             "Default" : "sf-te-codebuild-artifacts",
             "Description" : "Enter the S3 bucket where the artifacts will be stored."
+        },
+        "DeployStackTemplateFile" : {
+            "Type" : "String",
+            "Description" : "Enter the name of the CloudFormation template file for deployment (should exist in artifacts)."
+        },
+        "DeployStackTemplateConfFile" : {
+            "Type" : "String",
+            "Description" : "Enter the name of the CloudFormation template configuration file for deployment (should exist in artifacts)."
         }
     },
+
     "Resources" : {
+        "CloudFormationDeployRole" : {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": { 
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "cloudformation.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                },
+                "Path": "/service-role/",
+                "RoleName" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-cloudformation-role" ] ] }
+
+            }
+        },
+
+        "CloudFormationDeployPolicy" : {
+            "Type" : "AWS::IAM::Policy",
+            "Properties" : { 
+                "Roles" : [{ "Ref" : "CloudFormationDeployRole" }],
+                "PolicyDocument" : {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "*",
+                            "Resource": "*"
+                        }
+                    ]
+                },
+                "PolicyName" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-cloudformation-policy" ] ] }
+            }
+        },
 
         "CodeBuildRole" : {
             "Type": "AWS::IAM::Role",
@@ -74,7 +121,7 @@
                     ]
                 },
                 "Path": "/service-role/",
-                "RoleName" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "codebuild-role" ] ] }
+                "RoleName" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-codebuild-role" ] ] }
 
             }
         },
@@ -198,7 +245,7 @@
                                 },  
                                 "OutputArtifacts" : [
                                     {
-                                        "Name" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "source-artifacts" ] ] }
+                                        "Name" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-source-artifacts" ] ] }
                                     }
                                 ],
                                 "RunOrder" : "1"
@@ -222,19 +269,48 @@
                                 
                                 "InputArtifacts" : [
                                     {
-                                        "Name" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "source-artifacts" ] ] }
+                                        "Name" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-source-artifacts" ] ] }
                                     }
                                 ],
                                 "OutputArtifacts" : [
                                     {
-                                        "Name" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "build-artifacts" ] ] }
+                                        "Name" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-build-artifacts" ] ] }
                                     }
                                 ],
                                 "RunOrder" : "1"
                             }
                         ]
                         
-                    }                   
+                    },
+                    {
+                        "Name" : "Deploy",
+                        "Actions" : [
+                            {
+                                "Name" : "DeployAction",
+                                "ActionTypeId" : {
+                                    "Category" : "Deploy",
+                                    "Owner" : "AWS",
+                                    "Provider" : "CloudFormation",
+                                    "Version" : "1"
+                                },  
+                                "Configuration" : {
+                                    "ActionMode" : "CREATE_UPDATE",
+                                    "RoleArn" : { "Fn::GetAtt": [ "CloudFormationDeployRole", "Arn" ] },
+                                    "StackName": { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-cf-stack" ] ] },
+                                    "TemplatePath" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-build-artifacts::", { "Ref" : "DeployStackTemplateFile" } ] ] },
+                                    "TemplateConfiguration" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-build-artifacts::", { "Ref" : "DeployStackTemplateConfFile" } ] ] }
+                                },  
+                                
+                                "InputArtifacts" : [
+                                    {
+                                        "Name" : { "Fn::Join" : [ "", [ { "Ref" : "ServiceName" }, "-build-artifacts" ] ] }
+                                    }
+                                ],
+                                "RunOrder" : "1"
+                            }
+                        ]
+                        
+                    }
                 ]
             }
         }

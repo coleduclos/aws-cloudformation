@@ -52,7 +52,7 @@
         },
         "BuildArtifactsLocation" : {
             "Type" : "String",
-            "Default" : "sf-te-codebuild-artifacts",
+            "Default" : "codebuild-artifacts",
             "Description" : "Enter the S3 bucket where the artifacts will be stored."
         },
         "DeployStackTemplateFile" : {
@@ -224,7 +224,7 @@
                 },
                 "Name" : { "Fn::Join" : [ "-", [ { "Ref" : "ServiceName" }, "codepipeline" ] ] },
                 "RestartExecutionOnUpdate" : "True",
-                "RoleArn" : "arn:aws:iam::287222052256:role/AWS-CodePipeline-Service",
+                "RoleArn" : { "Fn::Join" : [ "", [ "arn:aws:iam::", { "Ref" : "AWS::AccountId" }, ":role/AWS-CodePipeline-Service" ] ] },
                 "Stages" : [ 
                     {
                         "Name" : "Source",

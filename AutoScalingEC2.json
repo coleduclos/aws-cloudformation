@@ -1,0 +1,156 @@
+{
+    "Parameters" : {
+        "Owner" : {
+            "Type" : "String",
+            "Description" : "Enter the owner of the ASG."
+        },
+        "AppName" : {
+            "Type" : "String",
+            "Description" : "Enter the application name."
+        },
+        "InstanceType" : {
+            "Type" : "String",
+            "Default" : "t2.micro",
+            "AllowedValues" : ["t2.micro", "m4.large"],
+            "Description" : "Enter t2.micro or m4.large. Default is t2.micro."
+        },
+        "KeyName" : {
+              "Description" : "The EC2 Key Pair to allow SSH access to the instances",
+              "Type" : "AWS::EC2::KeyPair::KeyName",
+              "ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
+        },
+        "SSHLocation" : {
+            "Description" : "The IP address range that can be used to SSH to the EC2 instances",
+            "Type": "String",
+            "MinLength": "9",
+            "MaxLength": "18",
+            "Default": "0.0.0.0/0",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+        },
+        "VPC" : {
+            "Type" : "AWS::EC2::VPC::Id",
+            "Description" : "Select which VPC will host the cluster."
+        },
+        "Subnets" : {
+            "Type" : "List<AWS::EC2::Subnet::Id>",
+            "Description" : "Select the subnets to deploy to."
+        },
+        "AssignPublicIP" : {
+            "Type" : "String",
+            "Default" : "false",
+            "AllowedValues" : [ "true", "false" ],
+            "Description" : "Select whether to assign public IP addresses to the EC2 instances."
+        }
+
+    },
+    "Mappings" : {
+        "AWSRegion2AMI" : {
+            "us-east-1" : { "AmazonLinux" : "ami-9be6f38c" },
+            "us-west-2" : { "AmazonLinux" : "ami-1e299d7e" },
+            "us-west-1" : { "AmazonLinux" : "ami-b73d6cd7" }
+        }
+    },
+    "Resources" : {
+        "AutoScalingGroup" : {
+            "Type" : "AWS::AutoScaling::AutoScalingGroup",
+            "Properties" : {
+                "VPCZoneIdentifier" : { "Ref" : "Subnets"},
+                "LaunchConfigurationName" : { "Ref" : "LaunchConfig" },
+                "MinSize" : "3",
+                "MaxSize" : "3",
+                "Tags" : [ {
+                        "Key" : "Name",
+                        "Value" : { "Fn::Join" : [ "-", [ { "Ref" : "AppName" }, "instance" ] ] },
+                        "PropagateAtLaunch" : "true"
+                    },
+                    {
+                        "Key" : "Owner",
+                        "Value" : { "Ref" : "Owner" },
+                        "PropagateAtLaunch" : "true"
+                    } ]
+            },
+        },
+        "LaunchConfig" : {
+            "Type" : "AWS::AutoScaling::LaunchConfiguration",
+            "Properties" : {
+                "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "AmazonLinux" ] },
+                "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
+                "InstanceType" : { "Ref" : "InstanceType" },
+                "KeyName" : { "Ref" : "KeyName" },
+                "AssociatePublicIpAddress" : { "Ref" : "AssignPublicIP" }         
+            }
+        },
+        "InstanceScaleUpPolicy" : {
+            "Type" : "AWS::AutoScaling::ScalingPolicy",
+            "Properties" : {
+                "AdjustmentType" : "ChangeInCapacity",
+                "AutoScalingGroupName" : { "Ref" : "AutoScalingGroup" },
+                "Cooldown" : "60",
+                "ScalingAdjustment" : "1"
+            }
+        },
+        "InstanceScaleDownPolicy" : {
+            "Type" : "AWS::AutoScaling::ScalingPolicy",
+            "Properties" : {
+                "AdjustmentType" : "ChangeInCapacity",
+                "AutoScalingGroupName" : { "Ref" : "AutoScalingGroup" },
+                "Cooldown" : "60",
+                "ScalingAdjustment" : "-1"
+            }
+        },
+        "CPUAlarmHigh": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmDescription": "Scale-up if CPU > 70% for 5 minutes",
+                "MetricName": "CPUUtilization",
+                "Namespace": "AWS/EC2",
+                "Statistic": "Average",
+                "Period": "300",
+                "EvaluationPeriods": "1",
+                "Threshold": "70",
+                "AlarmActions": [ { "Ref": "InstanceScaleUpPolicy" } ],
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": { "Ref": "AutoScalingGroup" }
+                    }
+                ],
+                "ComparisonOperator": "GreaterThanThreshold"
+            }
+        },
+        "CPUAlarmLow": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmDescription": "Scale-down if CPU < 70% for 5 minutes",
+                "MetricName": "CPUUtilization",
+                "Namespace": "AWS/EC2",
+                "Statistic": "Average",
+                "Period": "300",
+                "EvaluationPeriods": "1",
+                "Threshold": "70",
+                "AlarmActions": [ { "Ref": "InstanceScaleDownPolicy" } ],
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": { "Ref": "AutoScalingGroup" }
+                    }
+                ],
+                "ComparisonOperator": "LessThanThreshold"
+            }
+        },
+        "InstanceSecurityGroup" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "VpcId" : { "Ref" : "VPC" },
+                "GroupDescription" : "Enable SSH access  only",
+                "SecurityGroupIngress" : [ {
+                    "IpProtocol" : "tcp",
+                    "FromPort" : "22",
+                    "ToPort" : "22",
+                    "CidrIp" : { "Ref" : "SSHLocation"}
+                } ]
+            }
+        }
+    }
+}

@@ -1,0 +1,38 @@
+{
+    "Parameters" : {
+        "Owner" :{
+            "Type" : "String",
+            "Description" : "Enter the owner of the stack."
+        },
+        "AppName" :{
+            "Type" : "String",
+            "Description" : "Enter the application name associated with the stack."
+        }
+    },
+    "Resources" : {
+        "ApiGateway" : {
+            "Type" : "AWS::ApiGateway::RestApi",
+            "Properties" : {
+                "Name" : { "Fn::Join" : [ "", [ { "Ref" : "AppName" }, "-api-gw" ] ] },
+          }
+        },
+        "RatingResource" : {
+            "Type" : "AWS::ApiGateway::Resource",
+            "Properties" : {
+                "ParentId" : { "Fn::GetAtt": ["ApiGateway", "RootResourceId"] },
+                "PathPart" : "rating",
+                "RestApiId" : { "Ref" : "ApiGateway" }
+            }
+        },
+        "RatingPOSTMethod" : {
+            "Type" : "AWS::ApiGateway::Method",
+            "Properties" : {
+                "AuthorizationType" : "NONE",
+                "HttpMethod" : "POST",
+                "ResourceId" : { "Ref" : "RatingResource" },
+                "RestApiId" : { "Ref" : "ApiGateway" }
+            }
+        }
+
+    }
+}

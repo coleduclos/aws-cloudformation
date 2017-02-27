@@ -7,6 +7,10 @@
         "AppName" :{
             "Type" : "String",
             "Description" : "Enter the application name associated with the stack."
+        },
+        "CognitoPoolID" : {
+            "Type" : "String",
+            "Description" : "Enter the authorizing Cognito Pool ID."
         }
     },
     "Resources" : {
@@ -24,15 +28,30 @@
                 "RestApiId" : { "Ref" : "ApiGateway" }
             }
         },
+        "CognitoAutherizer" : {
+            "Type" : "AWS::ApiGateway::Authorizer",
+            "Properties" : {
+                "IdentitySource" : "method.request.header.Authorization",
+                "Name" : { "Fn::Join" : [ "", [ { "Ref" : "AppName" }, "-user-pool" ] ] },
+                "ProviderARNs" : [ { "Fn::Join" : [ "", [ "arn:aws:cognito-idp:", { "Ref" : "AWS::Region" }, ":", { "Ref" : "AWS::AccountId" },":userpool/", { "Ref" : "CognitoPoolID" } ] ] } ],
+                "RestApiId" : { "Ref" : "ApiGateway" },
+                "Type" : "COGNITO_USER_POOLS"
+            }
+        },
         "RatingPOSTMethod" : {
             "Type" : "AWS::ApiGateway::Method",
             "Properties" : {
-                "AuthorizationType" : "NONE",
+                "AuthorizationType" : "COGNITO_USER_POOLS",
+                "AuthorizerId" : { "Ref" : "CognitoAutherizer" },
                 "HttpMethod" : "POST",
                 "ResourceId" : { "Ref" : "RatingResource" },
-                "RestApiId" : { "Ref" : "ApiGateway" }
+                "RestApiId" : { "Ref" : "ApiGateway" },
+                "Integration" : {
+                    "IntegrationHttpMethod" : "POST",
+                    "Type" : "AWS_PROXY",
+                    "Uri" : { "Fn::Join" : [ "", [ "arn:aws:apigateway:", { "Ref" : "AWS::Region" }, ":lambda:path/2015-03-31/functions/arn:aws:lambda:", { "Ref" : "AWS::Region" }, ":", { "Ref" : "AWS::AccountId" }, ":function:", { "Ref" : "AppName" }, "-ratings-service/invocations" ] ] }
+                }
             }
         }
-
     }
 }

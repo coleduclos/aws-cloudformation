@@ -4,18 +4,13 @@
             "Type" : "String",
             "Description" : "Enter the owner of the ECS cluster."
         },
-        "ECSClusterName" : {
+        "AppName" :{
             "Type" : "String",
-            "Default" : "test-ecs-cluster",
-            "Description" : "Enter the name applied to the ECS cluster."
-        },
-        "ECSInstanceRole" : {
-            "Type" : "String",
-            "Description" : "Enter the IAM role to be assigned to the ECS instance."
+            "Description" : "Enter the application name associated with the stack."
         },
         "ECSConfigS3Location" : {
             "Type" : "String",
-            "Description" : "Specify the S3 location of the ECS config file to be used for each instance in the cluster. For example: s3://<bucket-name>/<path>/ecs.config"
+            "Description" : "Specify the S3 location of the ECS config file to be used for each instance in the cluster. For example: <bucket-name>/<path>/ecs.config"
         },
         "InstanceType" : {
             "Type" : "String",
@@ -56,11 +51,59 @@
     "Mappings" : {
         "AWSRegion2AMI" : {
             "us-east-1" : { "ecsOptimized" : "ami-6df8fe7a" },
-            "us-west-2" : { "ecsOptimized" : "ami-a2ca61c2" },
+            "us-west-2" : { "ecsOptimized" : "ami-022b9262" },
             "us-west-1" : { "ecsOptimized" : "ami-1eda8d7e" }
         }
     },
     "Resources" : {
+        "EC2IAMRole" : {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument" : {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "ec2.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                },
+                "ManagedPolicyArns" : [
+                    "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+                ],
+                "Policies": [ 
+                    {
+                        "PolicyName": { "Fn::Join" : [ "-", [ { "Ref" : "AppName" }, "ecs-instance-policy" ] ] },
+                        "PolicyDocument": {
+                            "Version" : "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:GetObject"
+                                    ],
+                                    "Resource": [
+                                        { "Fn::Join" : [ "", [ "arn:aws:s3:::", { "Ref" : "ECSConfigS3Location" } ] ] }
+                                    ]
+                                }
+                            ]
+                        } 
+                    }
+                ],
+                "Path": { "Fn::Join" : [ "", [ "/", { "Ref" : "AppName" }, "/" ] ] },
+                "RoleName": { "Fn::Join" : [ "-", [ { "Ref" : "AppName" }, "ecs-instance-role" ] ] }
+          }
+        },
+        "InstanceProfile" : {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Path": { "Fn::Join" : [ "", [ "/", { "Ref" : "AppName" }, "/" ] ] },
+                "Roles": [ { "Ref" : "EC2IAMRole"} ]
+            }
+        },
         "ECSInstanceGroup" : {
             "Type" : "AWS::AutoScaling::AutoScalingGroup",
             "Properties" : {
@@ -70,7 +113,7 @@
                 "MaxSize" : "3",
                 "Tags" : [ {
                         "Key" : "Name",
-                        "Value" : { "Fn::Join" : [ "-", [ { "Ref" : "ECSClusterName" }, "instance" ] ] },
+                        "Value" : { "Fn::Join" : [ "", [ { "Ref" : "AppName" }, "-ecs-cluster-instance" ] ] },
                         "PropagateAtLaunch" : "true"
                     },
                     {
@@ -86,13 +129,13 @@
                 "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "ecsOptimized" ] },
                 "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
                 "InstanceType" : { "Ref" : "InstanceType" },
-                "IamInstanceProfile" : { "Ref" : "ECSInstanceRole" },
+                "IamInstanceProfile" : { "Ref" : "InstanceProfile" },
                 "KeyName" : { "Ref" : "KeyName" },
                 "AssociatePublicIpAddress" : { "Ref" : "AssignPublicIP" },
                 "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
                     "#!/bin/bash \n",
                     "yum install -y aws-cli \n",
-                    "aws s3 cp ", { "Ref" : "ECSConfigS3Location"}, " /etc/ecs/ecs.config"
+                    "aws s3 cp s3://", { "Ref" : "ECSConfigS3Location"}, " /etc/ecs/ecs.config"
                 ]]}}         
             }
         },
@@ -170,7 +213,7 @@
         "ECSCluster" : {
             "Type" : "AWS::ECS::Cluster",
             "Properties" : {
-                "ClusterName" : { "Ref" : "ECSClusterName"}
+                "ClusterName" : { "Fn::Join" : [ "", [ { "Ref" : "AppName" }, "-ecs-cluster" ] ] }
             }
         }
     }

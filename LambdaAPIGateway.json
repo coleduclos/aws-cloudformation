@@ -58,6 +58,13 @@
         }
     },
     "Resources" : {
+        "S3Bucket" : {
+            "Type" : "AWS::S3::Bucket",
+            "Properties" : {
+                "BucketName" : { "Ref" : "CodeS3Bucket"}
+            }
+        },
+
         "LambdaFunction" : {
             "Type" : "AWS::Lambda::Function",
             "Properties" : {

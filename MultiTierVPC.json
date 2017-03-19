@@ -29,7 +29,7 @@
             "Properties" : {
                 "CidrBlock" : { "Fn::FindInMap" : [ "SubnetConfig", "VPC", "CIDR" ] } ,
                 "EnableDnsSupport" : "true",
-                "EnableDnsHostnames" : "false",
+                "EnableDnsHostnames" : "true",
                 "InstanceTenancy" : "default",
                 "Tags" : [ 
                     {

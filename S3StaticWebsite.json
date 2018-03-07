@@ -1,0 +1,27 @@
+{
+    "Parameters" : {
+        "SiteName" : {
+            "Type" : "String",
+            "Description" : "Enter the name of the site."
+        }
+    },
+    "Resources" : {
+        "S3BucketStatic" : {
+            "Type" : "AWS::S3::Bucket",
+            "Properties" : {
+                "AccessControl" : "PublicRead",
+                "BucketName" : { "Fn::Sub": "${SiteName}-bucket" },
+                "WebsiteConfiguration" : {
+                    "IndexDocument" : "index.html",
+                    "ErrorDocument" : "error.html"
+                }
+            }
+        }
+    },
+    "Outputs" : {
+        "WebsiteURL" : {
+            "Value" : { "Fn::GetAtt" : [ "S3BucketStatic", "WebsiteURL" ] },
+            "Description" : "URL for website hosted on S3"
+        }
+    }
+}
